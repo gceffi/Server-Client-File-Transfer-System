@@ -15,11 +15,13 @@
 
 std::string filename;
 
+// Function to display error messages and exit
 void error(const char *msg) {
     perror(msg);
     exit(1);
 }
 
+// Function to send a file to the client
 void send_file(int sockfd, const std::string& filepath) {
     // Extract the filename from the filepath
     filename = std::filesystem::path(filepath).filename().string();
@@ -30,7 +32,7 @@ void send_file(int sockfd, const std::string& filepath) {
         std::cerr << "A client requested the file \"" << filename << "\"" << std::endl;
         std::cerr << "That file is missing!" << std::endl;
         long error_code = -1;
-        write(sockfd, &error_code, sizeof(long));
+        write(sockfd, &error_code, sizeof(long)); // Notify the client about the error
         return;
     }
 
@@ -60,10 +62,12 @@ void send_file(int sockfd, const std::string& filepath) {
     file.close();
 }
 
+// Function to handle client requests
 void handle_client(int sockfd) {
     char buffer[256];
     bzero(buffer, 256);
-    int n = read(sockfd, buffer, 255);
+    int n = read(sockfd, buffer, 255); // Read client request
+
     if (n < 0)
         error("ERROR reading from socket");
 
@@ -100,31 +104,37 @@ int main() {
     char buffer[256];
     struct sockaddr_in serv_addr, cli_addr;
 
+    // Create a socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         error("ERROR opening socket");
 
+    // Initialize server address structure
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(PORT);
 
+    // Bind the socket to the specified port
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         error("ERROR on binding");
 
+    // Listen for incoming connections
     listen(sockfd, 5);
     clilen = sizeof(cli_addr);
 
+    // Main loop to accept and handle client connections
     while (1) {
         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
         if (newsockfd < 0)
             error("ERROR on accept");
 
+        // Handle the client request
         handle_client(newsockfd);
 
-        close(newsockfd);
+        close(newsockfd); // Close the connection with the client
     }
 
-    close(sockfd);
+    close(sockfd); // Close the server socket
     return 0;
 }
