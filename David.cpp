@@ -61,7 +61,6 @@ void send_file(int sockfd, const std::string& filepath) {
     file.close();
 }
 
-
 void handle_client(int newsockfd) {
     char buffer[256];
     bzero(buffer, 256);
@@ -83,16 +82,14 @@ void handle_client(int newsockfd) {
         // Send the file to the client
         send_file(newsockfd, filepath);
     } else if (strncmp(buffer, "exit", 4) == 0) {
-    // Handle 'exit' command
-    printf("Client exited\n");
-    close(newsockfd);
-    // Do not exit server process, continue accepting new connections
+        // Handle 'exit' command
+        printf("Client exited\n");
+        close(newsockfd);
+        // Do not exit server process, continue accepting new connections
     } else if (strncmp(buffer, "terminate", 9) == 0) {
         // Handle 'terminate' command
         printf("Goodbye!\n");
         close(newsockfd);
-
-        // Terminate the server process
         exit(0);
     } else {
         std::cerr << "Invalid command received: " << buffer << std::endl;
@@ -133,13 +130,14 @@ int main() {
             error("ERROR on fork");
 
         if (pid == 0) {
-            close(sockfd);
+            close(sockfd);  // Close listening socket in child process
             handle_client(newsockfd);
-            // Child process will exit after handling client
-            exit(0);
+            close(newsockfd);  // Close client socket in child process after handling client
+            exit(0);  // Child process exits after handling client
+        } else if (pid > 0) {
+            close(newsockfd);  // Close client socket in parent process
         } else {
-            // Parent process will continue accepting new connections
-            close(newsockfd);
+            error("ERROR on fork");
         }
     }
 
