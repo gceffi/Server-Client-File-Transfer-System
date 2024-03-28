@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 
             if (file_size < 0) {
                 printf("File not found on server!\n");
-                continue;
+                break;
             }
 
             char file_buffer[file_size];
@@ -104,8 +104,14 @@ int main(int argc, char *argv[]) {
 
             file.write(file_buffer, file_size);
             file.close();
+
+            // Break out the loop after processing a single command
+            break;
         }
     }
+
+    // Close the socket connection
+    close(sockfd);
 
     return 0;
 }

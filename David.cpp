@@ -7,7 +7,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <sys/wait.h>
 #include <string>
 #include <filesystem>
 
@@ -61,10 +60,10 @@ void send_file(int sockfd, const std::string& filepath) {
     file.close();
 }
 
-void handle_client(int newsockfd) {
+void handle_client(int sockfd) {
     char buffer[256];
     bzero(buffer, 256);
-    int n = read(newsockfd, buffer, 255);
+    int n = read(sockfd, buffer, 255);
     if (n < 0)
         error("ERROR reading from socket");
 
@@ -80,22 +79,19 @@ void handle_client(int newsockfd) {
         std::string filepath = REPOSITORY_DIR + request;
 
         // Send the file to the client
-        send_file(newsockfd, filepath);
+        send_file(sockfd, filepath);
     } else if (strncmp(buffer, "exit", 4) == 0) {
         // Handle 'exit' command
         printf("Client exited\n");
-        close(newsockfd);
-        // Do not exit server process, continue accepting new connections
+        close(sockfd);
     } else if (strncmp(buffer, "terminate", 9) == 0) {
         // Handle 'terminate' command
         printf("Goodbye!\n");
-        close(newsockfd);
+        close(sockfd);
         exit(0);
     } else {
         std::cerr << "Invalid command received: " << buffer << std::endl;
     }
-
-    close(newsockfd);
 }
 
 int main() {
@@ -103,7 +99,6 @@ int main() {
     socklen_t clilen;
     char buffer[256];
     struct sockaddr_in serv_addr, cli_addr;
-    int pid;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
@@ -125,20 +120,9 @@ int main() {
         if (newsockfd < 0)
             error("ERROR on accept");
 
-        pid = fork();
-        if (pid < 0)
-            error("ERROR on fork");
+        handle_client(newsockfd);
 
-        if (pid == 0) {
-            close(sockfd);  // Close listening socket in child process
-            handle_client(newsockfd);
-            close(newsockfd);  // Close client socket in child process after handling client
-            exit(0);  // Child process exits after handling client
-        } else if (pid > 0) {
-            close(newsockfd);  // Close client socket in parent process
-        } else {
-            error("ERROR on fork");
-        }
+        close(newsockfd);
     }
 
     close(sockfd);
