@@ -64,39 +64,47 @@ void send_file(int sockfd, const std::string& filepath) {
 
 // Function to handle client requests
 void handle_client(int sockfd) {
-    char buffer[256];
-    bzero(buffer, 256);
-    int n = read(sockfd, buffer, 255); // Read client request
+    while (1) {
+        char buffer[256];
+        bzero(buffer, 256);
+        int n = read(sockfd, buffer, 255); // Read client request
 
-    if (n < 0)
-        error("ERROR reading from socket");
+        if (n < 0)
+            error("ERROR reading from socket");
 
-    if (strncmp(buffer, "get", 3) == 0) {
-        // Extract filename from client request
-        std::string request(buffer + 4);
-        size_t pos = request.find_first_of("\n\r");
-        if (pos != std::string::npos) {
-            request.erase(pos);
+        if (strncmp(buffer, "get", 3) == 0) {
+            // Extract filename from client request
+            std::string request(buffer + 3); // Start from index 3 to skip "get"
+            size_t pos = request.find_first_of("\n\r");
+            if (pos != std::string::npos) {
+                request.erase(pos);
+            }
+
+            // Trim leading and trailing spaces
+            request.erase(0, request.find_first_not_of(" \t\r\n"));
+            request.erase(request.find_last_not_of(" \t\r\n") + 1);
+
+            // Construct full file path
+            std::string filepath = REPOSITORY_DIR + request;
+
+            // Send the file to the client
+            send_file(sockfd, filepath);
+        } else if (strncmp(buffer, "exit", 4) == 0) {
+            // Handle 'exit' command
+            printf("Client exited\n");
+            close(sockfd);
+            break; // Exit loop
+        } else if (strncmp(buffer, "terminate", 9) == 0) {
+            // Handle 'terminate' command
+            printf("Goodbye!\n");
+            close(sockfd);
+            exit(0);
+        } else {
+            std::cerr << "Invalid command received: " << buffer << std::endl;
         }
-
-        // Construct full file path
-        std::string filepath = REPOSITORY_DIR + request;
-
-        // Send the file to the client
-        send_file(sockfd, filepath);
-    } else if (strncmp(buffer, "exit", 4) == 0) {
-        // Handle 'exit' command
-        printf("Client exited\n");
-        close(sockfd);
-    } else if (strncmp(buffer, "terminate", 9) == 0) {
-        // Handle 'terminate' command
-        printf("Goodbye!\n");
-        close(sockfd);
-        exit(0);
-    } else {
-        std::cerr << "Invalid command received: " << buffer << std::endl;
     }
 }
+
 
 int main() {
     int sockfd, newsockfd;

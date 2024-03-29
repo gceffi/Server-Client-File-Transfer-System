@@ -11,16 +11,56 @@
 #define PORT 12345 // The port number, change if needed
 #define SERVER_IP "127.0.0.1" // The server IP address
 
-// Function to display error messages and exit
 void error(const char *msg) {
     perror(msg);
-    exit(0);
+    exit(1);
+}
+
+// Function to receive a file from the server
+void receive_file(int sockfd, const std::string& filename) {
+    long file_size;
+    int n = read(sockfd, &file_size, sizeof(long));
+    if (n < 0)
+        error("ERROR reading file size from socket");
+
+    if (file_size < 0) {
+        printf("File not found on server!\n");
+        return;
+    }
+
+
+    // Open file for writing
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        perror("Error creating file");
+        return;
+    }
+
+    const int BUFFER_SIZE = 1024;
+    char buffer[BUFFER_SIZE];
+
+    // Read file contents from the socket and write them to the file
+    long bytes_received = 0;
+    while (bytes_received < file_size) {
+        int bytes_to_read = std::min(BUFFER_SIZE, static_cast<int>(file_size - bytes_received));
+        n = read(sockfd, buffer, bytes_to_read);
+        if (n < 0)
+            error("ERROR reading file from socket");
+
+        file.write(buffer, n);
+        bytes_received += n;
+    }
+
+    file.close();
+
+    // Print message indicating the file received
+    std::cout << "Received file \"" << filename << "\" (" << file_size << " bytes)" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
     int sockfd, n; // Socket file descriptor and read/write buffer size
-    struct sockaddr_in serv_addr; // Server address structure
-    struct hostent *server; // Host entity structure for storing server information
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
 
     char buffer[256]; // Buffer to store user input and received data
 
@@ -30,14 +70,14 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    int portno = atoi(argv[1]); // Get port number from command line arguments
+    int portno = atoi(argv[1]); // Get port number from line arguments
 
-    // Create a socket
+    // Creates a socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         error("ERROR opening socket");
 
-    // Get server information
+    //Get server information
     server = gethostbyname(SERVER_IP);
     if (server == NULL) {
         fprintf(stderr, "ERROR, no such host\n");
@@ -49,7 +89,7 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(portno);
-
+    
     // Connect to the server
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         error("ERROR connecting");
@@ -65,70 +105,26 @@ int main(int argc, char *argv[]) {
         if (n < 0)
             error("ERROR writing to socket");
 
-        // Check if user wants to exit
-        if (strncmp(buffer, "exit", 4) == 0) {
-            // Send a message to the server indicating the connection is closing
-            const char* exit_message = "EXIT";
-            write(sockfd, exit_message, strlen(exit_message));
-
-            // Close the socket connection
+        //Checks if user wants to exit or terminate
+        if (strncmp(buffer, "exit", 4) == 0 || strncmp(buffer, "terminate", 9) == 0) {
             close(sockfd);
             printf("Connection closed.\n");
             break;
         }
-
-        // Check if user wants to terminate
-        if (strncmp(buffer, "terminate", 9) == 0) {
-            // Send a message to the server indicating termination
-            const char* terminate_message = "TERMINATE";
-            write(sockfd, terminate_message, strlen(terminate_message));
-
-            // Close the socket connection
-            close(sockfd);
-            printf("Connection terminated.\n");
-            exit(0);
-        }
-
-        // Check if user wants to get a file
+        
+        //Checks if user wants to get a file
         if (strncmp(buffer, "get", 3) == 0) {
-            long file_size;
-            // Read file size from the server
-            n = read(sockfd, &file_size, sizeof(long));
-            if (n < 0)
-                error("ERROR reading file size from socket");
-
-            // Check if file is found on the server
-            if (file_size < 0) {
-                printf("File not found on server!\n");
-                break;
+            // Extract filename from command
+            std::string filename(buffer + 4);
+            size_t pos = filename.find_first_of("\n\r");
+            if (pos != std::string::npos) {
+                filename.erase(pos);
             }
 
-            char file_buffer[file_size];
-            // Read file contents from the server
-            n = read(sockfd, file_buffer, file_size);
-            if (n < 0)
-                error("ERROR reading file from socket");
-
-            // Print information about the received file
-            printf("Received file %s (%ld bytes)\n", buffer + 4, file_size);
-
-            // Write the received file to disk
-            std::ofstream file(buffer + 4, std::ios::binary);
-            if (!file) {
-                perror("Error creating file");
-                continue;
-            }
-
-            file.write(file_buffer, file_size);
-            file.close();
-
-            // Break out of the loop after processing a single command
-            break;
+            // Receive file from server
+            receive_file(sockfd, filename);
         }
     }
-
-    // Close the socket connection
-    close(sockfd);
 
     return 0;
 }
