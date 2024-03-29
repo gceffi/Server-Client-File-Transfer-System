@@ -10,6 +10,7 @@
 
 #define PORT 12345 // The port number, change if needed
 #define SERVER_IP "127.0.0.1" // The server IP address
+#define SAVE_PATH "/mnt/c/Users/godsw/Documents/Assignment 2/Received/" // Saves the files in here
 
 void error(const char *msg) {
     perror(msg);
@@ -28,9 +29,9 @@ void receive_file(int sockfd, const std::string& filename) {
         return;
     }
 
-
     // Open file for writing
-    std::ofstream file(filename, std::ios::binary);
+    std::string filepath = SAVE_PATH + filename;
+    std::ofstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         perror("Error creating file");
         return;
@@ -56,6 +57,7 @@ void receive_file(int sockfd, const std::string& filename) {
     // Print message indicating the file received
     std::cout << "Received file \"" << filename << "\" (" << file_size << " bytes)" << std::endl;
 }
+
 
 int main(int argc, char *argv[]) {
     int sockfd, n; // Socket file descriptor and read/write buffer size
